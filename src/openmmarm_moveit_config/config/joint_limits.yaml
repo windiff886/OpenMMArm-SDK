@@ -1,0 +1,39 @@
+# OpenMMARM 关节限制配置
+# 覆盖或补充 URDF 中定义的动力学属性
+
+# 默认速度和加速度缩放因子（安全起见，初始设为较低值）
+default_velocity_scaling_factor: 0.3
+default_acceleration_scaling_factor: 1.0
+
+# 各关节的速度和加速度限制
+joint_limits:
+  J1:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  J2:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  J3:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  J4:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  J5:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  J6:
+    has_velocity_limits: true
+    max_velocity: 3.14
+    has_acceleration_limits: true
+    max_acceleration: 4.0

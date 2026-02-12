@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OpenMMARM 语义机器人描述文件 (SRDF)
+  定义规划组、预设姿态和自碰撞矩阵
+-->
+<robot name="openmmarm">
+    <!-- 规划组：manipulator，从 base_link 到 link6 的运动链 -->
+    <group name="manipulator">
+        <chain base_link="base_link" tip_link="link6"/>
+    </group>
+
+    <!-- 预设姿态：home（全零位） -->
+    <group_state name="home" group="manipulator">
+        <joint name="J1" value="0"/>
+        <joint name="J2" value="0"/>
+        <joint name="J3" value="0"/>
+        <joint name="J4" value="0"/>
+        <joint name="J5" value="0"/>
+        <joint name="J6" value="0"/>
+    </group_state>
+
+    <!-- 虚拟关节：将 base_link 固定到 world -->
+    <!-- 注意：URDF 中已有 world_joint (fixed)，此处不需要重复定义 virtual_joint -->
+
+    <!-- 自碰撞矩阵：禁用相邻 link 和不可能碰撞的 link 对的碰撞检测 -->
+    <disable_collisions link1="base_link" link2="link1" reason="Adjacent"/>
+    <disable_collisions link1="base_link" link2="link2" reason="Never"/>
+    <disable_collisions link1="link1" link2="link2" reason="Adjacent"/>
+    <disable_collisions link1="link1" link2="link3" reason="Never"/>
+    <disable_collisions link1="link2" link2="link3" reason="Adjacent"/>
+    <disable_collisions link1="link2" link2="link4" reason="Never"/>
+    <disable_collisions link1="link3" link2="link4" reason="Adjacent"/>
+    <disable_collisions link1="link3" link2="link5" reason="Never"/>
+    <disable_collisions link1="link4" link2="link5" reason="Adjacent"/>
+    <disable_collisions link1="link4" link2="link6" reason="Never"/>
+    <disable_collisions link1="link5" link2="link6" reason="Adjacent"/>
+</robot>

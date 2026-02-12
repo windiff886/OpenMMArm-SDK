@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<robot name="openmmarm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find openmmarm_description)/urdf/openmmarm_macro.xacro" />
+  <xacro:include filename="$(find openmmarm_description)/urdf/openmmarm.ros2_control.xacro" />
+
+  <xacro:openmmarm_robot />
+  <xacro:openmmarm_ros2_control name="OpenMMArm" />
+
+</robot>

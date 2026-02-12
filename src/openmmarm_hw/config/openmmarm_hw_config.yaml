@@ -1,0 +1,41 @@
+# OpenMMARM 硬件接口配置文件
+# 仅用于配置 controller_manager，ros2_control 的硬件参数请见 URDF
+
+controller_manager:
+  ros__parameters:
+    update_rate: 250  # Hz
+    use_sim_time: false
+
+    # 控制器列表
+    openmmarm_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+# 具体的控制器配置
+openmmarm_arm_controller:
+  ros__parameters:
+    joints:
+      - J1
+      - J2
+      - J3
+      - J4
+      - J5
+      - J6
+    interface_name: position
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0 
+
+    allow_partial_joints_goal: false 
+    open_loop_control: true
+    allow_integration_in_goal_trajectories: true
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 0.0

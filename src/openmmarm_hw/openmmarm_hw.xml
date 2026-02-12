@@ -1,0 +1,7 @@
+<library path="openmmarm_hw">
+  <class name="openmmarm_hw/OpenMMArmHW" type="openmmarm_hw::OpenMMArmHW" base_class_type="hardware_interface::SystemInterface">
+    <description>
+      OpenMMARM Hardware Interface for ros2_control
+    </description>
+  </class>
+</library>

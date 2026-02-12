@@ -1,0 +1,19 @@
+# OpenMMARM MoveIt 控制器配置
+# 用于连接 MoveIt 和 ros2_control 的轨迹执行控制器
+
+# 轨迹执行参数
+moveit_simple_controller_manager:
+  controller_names:
+    - openmmarm_arm_controller
+
+  openmmarm_arm_controller:
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    default: true
+    joints:
+      - J1
+      - J2
+      - J3
+      - J4
+      - J5
+      - J6

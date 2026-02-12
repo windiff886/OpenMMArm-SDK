@@ -1,0 +1,81 @@
+#pragma once
+
+#include "io/IOInterface.h"
+#include <arpa/inet.h>
+#include <atomic>
+#include <cstring>
+#include <netinet/in.h>
+#include <string>
+#include <sys/socket.h>
+#include <unistd.h>
+
+/**
+ * @brief UDP 通信接口实现
+ *
+ * 通过 UDP Socket 与真机 MCU 通信。
+ * 协议格式参考 Unitree SDK。
+ */
+class IOUDP : public IOInterface {
+public:
+  /**
+   * @brief 构造函数
+   * @param mcu_ip MCU 的 IP 地址
+   * @param mcu_port MCU 的端口号
+   * @param local_port 本地绑定端口 (0 表示自动分配)
+   */
+  IOUDP(const std::string &mcu_ip, int mcu_port, int local_port = 0);
+  ~IOUDP() override;
+
+  bool init() override;
+  bool sendRecv(const LowLevelCmd *cmd, LowLevelState *state) override;
+  bool isConnected() override;
+
+private:
+  // 发送控制指令
+  void sendCmd(const LowLevelCmd *cmd);
+
+  // 接收状态反馈
+  bool recvState(LowLevelState *state);
+
+  // Socket 相关
+  int socket_fd_ = -1;
+  struct sockaddr_in mcu_addr_;
+  struct sockaddr_in local_addr_;
+
+  std::string mcu_ip_;
+  int mcu_port_;
+  int local_port_;
+
+  // 连接状态
+  std::atomic<bool> is_connected_{false};
+  int recv_timeout_ms_ = 100; // 接收超时 (毫秒)
+
+  // UDP 数据包结构 (与 Unitree SDK 兼容)
+#pragma pack(push, 1)
+  struct UDPSendCmd {
+    uint8_t head[2] = {0xFE, 0xEF};
+    uint8_t mode[6];
+    float q[6];
+    float dq[6];
+    float tau[6];
+    float kp[6];
+    float kd[6];
+    uint32_t crc;
+  };
+
+  struct UDPRecvState {
+    uint8_t head[2];
+    uint8_t mode[6];
+    float q[6];
+    float dq[6];
+    float ddq[6];
+    float tau_est[6];
+    int8_t temperature[6];
+    uint8_t error_state[6];
+    uint32_t crc;
+  };
+#pragma pack(pop)
+
+  // CRC32 计算
+  uint32_t calculateCRC32(const uint8_t *data, size_t len);
+};

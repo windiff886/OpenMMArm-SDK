@@ -1,10 +1,16 @@
 #pragma once
 
 #include "io/IOInterface.h"
+#include <atomic>
+#include <condition_variable>
 #include <filesystem>
 #include <mujoco/mujoco.h>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
+
+struct GLFWwindow;
 
 /**
  * @brief MuJoCo 仿真接口实现
@@ -27,7 +33,8 @@ public:
    * @param model_path URDF 或 MJCF 模型文件的绝对路径
    * @param timestep 仿真时间步长 (秒)，默认 0.004 对应 250Hz
    */
-  explicit IOMujoco(const std::string &model_path, double timestep = 0.004);
+  explicit IOMujoco(const std::string &model_path, double timestep = 0.004,
+                    bool enable_viewer = false);
   ~IOMujoco() override;
 
   bool init() override;
@@ -35,12 +42,31 @@ public:
   bool isConnected() override;
 
 private:
+  bool initViewer();
+  void viewerLoop();
+  void closeViewer();
+
   std::string model_path_;          // 原始模型文件路径
   std::string resolved_model_path_; // 预处理后的临时模型文件路径
   double timestep_;
+  bool enable_viewer_ = false;
+  std::atomic<bool> viewer_initialized_{false};
+  std::atomic<bool> viewer_stop_requested_{false};
+  std::thread viewer_thread_;
+  std::mutex sim_mutex_;
+  std::mutex viewer_state_mutex_;
+  std::condition_variable viewer_state_cv_;
+  bool viewer_init_done_ = false;
+  bool viewer_init_ok_ = false;
 
   mjModel *model_ = nullptr;
   mjData *data_ = nullptr;
+
+  GLFWwindow *window_ = nullptr;
+  mjvCamera camera_;
+  mjvOption option_;
+  mjvScene scene_;
+  mjrContext context_;
 
   bool is_connected_ = false;
 

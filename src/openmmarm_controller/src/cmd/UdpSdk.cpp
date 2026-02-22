@@ -71,13 +71,29 @@ void UdpSdk::sendRecv() {
     uint32_t receivedCrc = recvBuf.crc;
     recvBuf.crc = 0;
     uint32_t calculatedCrc = calculateCRC32(
-        reinterpret_cast<const uint8_t *>(&recvBuf), sizeof(recvBuf));
+        reinterpret_cast<const uint8_t *>(&recvBuf),
+        sizeof(recvBuf) - sizeof(receivedCrc));
 
     if (receivedCrc == calculatedCrc) {
       // 校验通过，更新 armCmd
       recvBuf.crc = receivedCrc;
       armCmd = recvBuf;
       has_client_ = true;
+    } else {
+      static int crc_fail_count = 0;
+      ++crc_fail_count;
+      if (crc_fail_count % 200 == 1) {
+        std::cerr << "[UdpSdk] ArmCmd CRC 校验失败，已忽略数据包 (count="
+                  << crc_fail_count << ")" << std::endl;
+      }
+    }
+  } else if (recvLen > 0) {
+    static int size_fail_count = 0;
+    ++size_fail_count;
+    if (size_fail_count % 200 == 1) {
+      std::cerr << "[UdpSdk] ArmCmd 长度异常，收到 " << recvLen << " 字节，期望 "
+                << sizeof(OPENMMARM_SDK::ArmCmd) << " 字节 (count="
+                << size_fail_count << ")" << std::endl;
     }
   }
 
@@ -91,8 +107,9 @@ void UdpSdk::sendRecv() {
 
     // 计算 CRC32
     armState.crc = 0;
-    armState.crc = calculateCRC32(reinterpret_cast<const uint8_t *>(&armState),
-                                  sizeof(armState));
+    armState.crc = calculateCRC32(
+        reinterpret_cast<const uint8_t *>(&armState),
+        sizeof(armState) - sizeof(armState.crc));
 
     sendto(socket_fd_, &armState, sizeof(armState), 0,
            reinterpret_cast<struct sockaddr *>(&client_addr_),

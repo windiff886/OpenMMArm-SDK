@@ -16,15 +16,49 @@ find_package(rclcpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(openmmarm_sdk REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLFW QUIET glfw3)
 
 # MuJoCo 仿真库
-set(MUJOCO_DIR "$ENV{HOME}/anaconda3/lib/python3.12/site-packages/mujoco")
+file(GLOB MUJOCO_HOME_DIRS "$ENV{HOME}/.mujoco/mujoco-*")
+file(GLOB MUJOCO_CONDA_DIRS "$ENV{HOME}/anaconda3/lib/python*/site-packages/mujoco")
+set(MUJOCO_ROOT_HINTS
+  "$ENV{MUJOCO_DIR}"
+  "$ENV{MUJOCO_HOME}"
+  ${MUJOCO_HOME_DIRS}
+  ${MUJOCO_CONDA_DIRS}
+)
+
+find_path(MUJOCO_INCLUDE_DIR
+  NAMES mujoco/mujoco.h
+  HINTS ${MUJOCO_ROOT_HINTS}
+  PATH_SUFFIXES include
+)
+
+find_library(MUJOCO_LIBRARY
+  NAMES mujoco libmujoco
+  HINTS ${MUJOCO_ROOT_HINTS}
+  PATH_SUFFIXES lib
+)
+if(NOT MUJOCO_LIBRARY)
+  find_library(MUJOCO_LIBRARY
+    NAMES mujoco libmujoco
+    HINTS ${MUJOCO_ROOT_HINTS}
+  )
+endif()
+
+if(NOT MUJOCO_INCLUDE_DIR OR NOT MUJOCO_LIBRARY)
+  message(FATAL_ERROR
+    "MuJoCo not found. Please set MUJOCO_DIR or MUJOCO_HOME to MuJoCo root "
+    "(must contain include/mujoco/mujoco.h and lib/libmujoco.so, or libmujoco.so in root)."
+  )
+endif()
 
 # 包含目录
 include_directories(
   include
   ${EIGEN3_INCLUDE_DIRS}
-  ${MUJOCO_DIR}/include
+  ${MUJOCO_INCLUDE_DIR}
 )
 
 # 可执行文件
@@ -40,6 +74,15 @@ add_executable(openmmarm_ctrl
   src/fsm/State_JointCtrl.cpp
 )
 
+if(GLFW_FOUND)
+  target_include_directories(openmmarm_ctrl PRIVATE ${GLFW_INCLUDE_DIRS})
+  target_link_libraries(openmmarm_ctrl ${GLFW_LIBRARIES})
+  target_compile_definitions(openmmarm_ctrl PRIVATE OPENMMARM_HAS_GLFW=1)
+  message(STATUS "GLFW found, MuJoCo viewer support enabled")
+else()
+  message(WARNING "GLFW not found, MuJoCo viewer support disabled")
+endif()
+
 # 链接依赖
 ament_target_dependencies(openmmarm_ctrl
   rclcpp
@@ -49,7 +92,7 @@ ament_target_dependencies(openmmarm_ctrl
 
 # 链接 MuJoCo 库
 target_link_libraries(openmmarm_ctrl
-  ${MUJOCO_DIR}/libmujoco.so.3.3.7
+  ${MUJOCO_LIBRARY}
 )
 
 # 安装

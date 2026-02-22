@@ -41,6 +41,7 @@ public:
     this->declare_parameter<int>("udp.local_port", 8871);
     this->declare_parameter<int>("udp.sdk_port", 8871);
     this->declare_parameter<std::string>("sim.model_path", "");
+    this->declare_parameter<bool>("sim.viewer", true);
     this->declare_parameter<bool>("collision.open", true);
     this->declare_parameter<double>("collision.limit_torque", 10.0);
 
@@ -91,6 +92,7 @@ public:
     } else if (communication == "SIM") {
       std::string model_path =
           this->get_parameter("sim.model_path").as_string();
+      bool sim_viewer = this->get_parameter("sim.viewer").as_bool();
       if (model_path.empty()) {
         // 默认使用 openmmarm_description 包中的 URDF
         try {
@@ -104,14 +106,15 @@ public:
         }
       }
       ctrlComp_->ioInter =
-          std::make_shared<IOMujoco>(model_path, ctrlComp_->dt);
-      RCLCPP_INFO(this->get_logger(), "使用 MuJoCo 仿真模式，模型: %s",
-                  model_path.c_str());
+          std::make_shared<IOMujoco>(model_path, ctrlComp_->dt, sim_viewer);
+      RCLCPP_INFO(this->get_logger(), "使用 MuJoCo 仿真模式，模型: %s, viewer: %s",
+                  model_path.c_str(), sim_viewer ? "on" : "off");
     } else {
       RCLCPP_WARN(this->get_logger(), "未知通信模式: %s，使用默认 SIM 模式",
                   communication.c_str());
       std::string model_path =
           this->get_parameter("sim.model_path").as_string();
+      bool sim_viewer = this->get_parameter("sim.viewer").as_bool();
       if (model_path.empty()) {
         try {
           std::string desc_path = ament_index_cpp::get_package_share_directory(
@@ -124,7 +127,7 @@ public:
         }
       }
       ctrlComp_->ioInter =
-          std::make_shared<IOMujoco>(model_path, ctrlComp_->dt);
+          std::make_shared<IOMujoco>(model_path, ctrlComp_->dt, sim_viewer);
     }
 
     RCLCPP_INFO(this->get_logger(), "等待与机械臂建立连接...");

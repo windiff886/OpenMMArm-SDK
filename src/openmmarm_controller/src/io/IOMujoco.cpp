@@ -7,6 +7,11 @@
 #include <regex>
 #include <set>
 #include <sstream>
+#include <chrono>
+
+#ifdef OPENMMARM_HAS_GLFW
+#include <GLFW/glfw3.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -127,10 +132,14 @@ static std::string simplifyMeshFilenames(const std::string &xml_content) {
   return std::regex_replace(xml_content, mesh_re, R"RE(filename="$1")RE");
 }
 
-IOMujoco::IOMujoco(const std::string &model_path, double timestep)
-    : model_path_(model_path), timestep_(timestep) {}
+IOMujoco::IOMujoco(const std::string &model_path, double timestep,
+                   bool enable_viewer)
+    : model_path_(model_path), timestep_(timestep),
+      enable_viewer_(enable_viewer) {}
 
 IOMujoco::~IOMujoco() {
+  closeViewer();
+
   if (data_) {
     mj_deleteData(data_);
     data_ = nullptr;
@@ -236,6 +245,11 @@ bool IOMujoco::init() {
   is_connected_ = true;
   initialized_ = true;
 
+  if (enable_viewer_ && !initViewer()) {
+    std::cerr << "[IOMujoco] 警告: MuJoCo 可视化窗口初始化失败，将继续无窗口运行"
+              << std::endl;
+  }
+
   std::cout << "[IOMujoco] 初始化完成 - 模型: " << model_path_ << std::endl;
   std::cout << "[IOMujoco]   关节数 (nq): " << model_->nq
             << ", 自由度 (nv): " << model_->nv
@@ -250,6 +264,8 @@ bool IOMujoco::sendRecv(const LowLevelCmd *cmd, LowLevelState *state) {
   if (!model_ || !data_) {
     return false;
   }
+
+  std::lock_guard<std::mutex> lock(sim_mutex_);
 
   // 确定实际可控制的关节数
   int n = std::min(NUM_JOINTS, model_->nv);
@@ -299,3 +315,134 @@ bool IOMujoco::sendRecv(const LowLevelCmd *cmd, LowLevelState *state) {
 }
 
 bool IOMujoco::isConnected() { return is_connected_; }
+
+bool IOMujoco::initViewer() {
+  if (!enable_viewer_) {
+    return true;
+  }
+
+#ifdef OPENMMARM_HAS_GLFW
+  viewer_stop_requested_ = false;
+  {
+    std::lock_guard<std::mutex> lk(viewer_state_mutex_);
+    viewer_init_done_ = false;
+    viewer_init_ok_ = false;
+  }
+
+  viewer_thread_ = std::thread(&IOMujoco::viewerLoop, this);
+
+  std::unique_lock<std::mutex> lk(viewer_state_mutex_);
+  bool signaled = viewer_state_cv_.wait_for(
+      lk, std::chrono::seconds(2), [this]() { return viewer_init_done_; });
+  if (!signaled) {
+    std::cerr << "[IOMujoco] 等待 MuJoCo viewer 线程启动超时" << std::endl;
+    viewer_stop_requested_ = true;
+    lk.unlock();
+    if (viewer_thread_.joinable()) {
+      viewer_thread_.join();
+    }
+    return false;
+  }
+  return viewer_init_ok_;
+#else
+  std::cerr << "[IOMujoco] 当前构建未启用 GLFW，无法打开 MuJoCo 可视化窗口"
+            << std::endl;
+  return false;
+#endif
+}
+
+void IOMujoco::viewerLoop() {
+#ifdef OPENMMARM_HAS_GLFW
+  auto signalInit = [this](bool ok) {
+    {
+      std::lock_guard<std::mutex> lk(viewer_state_mutex_);
+      viewer_init_ok_ = ok;
+      viewer_init_done_ = true;
+    }
+    viewer_state_cv_.notify_one();
+  };
+
+  if (!glfwInit()) {
+    std::cerr << "[IOMujoco] GLFW 初始化失败" << std::endl;
+    signalInit(false);
+    return;
+  }
+
+  window_ = glfwCreateWindow(1280, 800, "OpenMMArm MuJoCo Viewer", nullptr,
+                             nullptr);
+  if (!window_) {
+    std::cerr << "[IOMujoco] 无法创建 MuJoCo 可视化窗口" << std::endl;
+    glfwTerminate();
+    signalInit(false);
+    return;
+  }
+
+  glfwMakeContextCurrent(window_);
+  // 开启垂直同步，渲染线程自行节流，不阻塞控制线程。
+  glfwSwapInterval(1);
+
+  mjv_defaultCamera(&camera_);
+  mjv_defaultOption(&option_);
+  mjv_defaultScene(&scene_);
+  mjr_defaultContext(&context_);
+
+  {
+    std::lock_guard<std::mutex> lk(sim_mutex_);
+    mjv_makeScene(model_, &scene_, 2000);
+    mjr_makeContext(model_, &context_, mjFONTSCALE_150);
+    camera_.type = mjCAMERA_FREE;
+    camera_.lookat[0] = model_->stat.center[0];
+    camera_.lookat[1] = model_->stat.center[1];
+    camera_.lookat[2] = model_->stat.center[2];
+    camera_.distance = model_->stat.extent * 2.0;
+  }
+
+  viewer_initialized_ = true;
+  std::cout << "[IOMujoco] MuJoCo 可视化窗口已开启" << std::endl;
+  signalInit(true);
+
+  while (!viewer_stop_requested_) {
+    if (glfwWindowShouldClose(window_)) {
+      break;
+    }
+
+    {
+      std::lock_guard<std::mutex> lk(sim_mutex_);
+      mjv_updateScene(model_, data_, &option_, nullptr, &camera_, mjCAT_ALL,
+                      &scene_);
+    }
+
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window_, &width, &height);
+    mjrRect viewport = {0, 0, width, height};
+    mjr_render(viewport, &scene_, &context_);
+
+    glfwSwapBuffers(window_);
+    glfwPollEvents();
+  }
+
+  viewer_initialized_ = false;
+  mjr_freeContext(&context_);
+  mjv_freeScene(&scene_);
+  if (window_) {
+    glfwDestroyWindow(window_);
+    window_ = nullptr;
+  }
+  glfwTerminate();
+#else
+  (void)this;
+#endif
+}
+
+void IOMujoco::closeViewer() {
+#ifdef OPENMMARM_HAS_GLFW
+  viewer_stop_requested_ = true;
+  if (viewer_initialized_) {
+    glfwPostEmptyEvent();
+  }
+  if (viewer_thread_.joinable()) {
+    viewer_thread_.join();
+  }
+#endif
+}

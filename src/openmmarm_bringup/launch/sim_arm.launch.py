@@ -44,6 +44,7 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_moveit = LaunchConfiguration('use_moveit')
+    use_mujoco_viewer = LaunchConfiguration('use_mujoco_viewer')
 
     # 使用 xacro 处理 robot.xacro
     xacro_file = os.path.join(description_pkg, 'urdf', 'robot.xacro')
@@ -74,6 +75,7 @@ def generate_launch_description():
             {'use_sim_time': use_sim_time},
             {'communication': 'SIM'},
             {'sim.model_path': LaunchConfiguration('sim_model_path')},
+            {'sim.viewer': use_mujoco_viewer},
         ],
     )
 
@@ -159,6 +161,11 @@ def generate_launch_description():
             'sim_model_path',
             default_value='',
             description='MuJoCo 模型文件路径 (留空则自动使用 openmmarm_description 中的 URDF)',
+        ),
+        DeclareLaunchArgument(
+            'use_mujoco_viewer',
+            default_value='true',
+            description='是否开启 MuJoCo 原生可视化窗口',
         ),
         controller_node,
         robot_state_publisher_node,
